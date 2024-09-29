@@ -59,6 +59,16 @@ namespace ComarchBootcampKonsola.App
                         cm.Start();
                         result = 0;
                         break;
+                    case "7":
+                        Console.WriteLine("Wprowadź wartość zapisu do pliku: ");
+                        string content = Console.ReadLine();
+                        File.WriteAllText(@"..\..\file.txt", content);
+                        break;
+                    case "8":
+                        Console.WriteLine("Zawartość pliku file.txt");
+                        string fileText = File.ReadAllText(@"..\..\file.txt");
+                        Console.WriteLine(fileText);
+                        break;
                     default:
                         Console.Clear();
                         Console.WriteLine("Nie wybrano żadnej z dostępnych operacji");
