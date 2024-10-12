@@ -4,6 +4,7 @@ using ConsoleTables;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -11,17 +12,23 @@ namespace ComarchBootcampKonsola.App.CarManagment
 {
     internal class CarManager
     {
+        private readonly VehicleRepository repository;
+        public CarManager()
+        {
+            repository = new VehicleRepository();
+            repository.GetDataFromFile();
+        }
         public void Start()
         {
-            int choise;
+            int choice;
             do
             {
                 ShowMenu();
 
                 Console.Write("Wybierz pozycję: ");
-                if (int.TryParse(Console.ReadLine(), out choise))
+                if (int.TryParse(Console.ReadLine(), out choice))
                 {
-                    switch (choise)
+                    switch (choice)
                     {
                         case 1:
                             ShowCars();
@@ -30,35 +37,81 @@ namespace ComarchBootcampKonsola.App.CarManagment
                             AddNewCar();
                             break;
                         case 3:
-                            DeleteCar();
+                            EditCar();
                             break;
                         case 4:
+                            DeleteCar();
+                            break;
+                        case 5:
                             BorrowCar();
+                            break;
+                        case 6:
+                            ReceiveCar();
                             break;
                         default:
                             break;
                     }
+                    repository.SaveDataToFile();
                 }
-            } while (choise != 0);
-            Console.WriteLine("Koniec programu.");
+                else
+                {
+                    ShowError("Wprowadzona wartość jest nieprawidłowa.");
+                    choice = 99;
+                    continue;
+                }
+
+            } while (choice != 0);
+        }
+
+        private void ReceiveCar()
+        {
+            Vehicle? vehicle = CheckVehicleID();
+
+            vehicle?.Receive();
+        }
+
+        private void BorrowCar()
+        {
+            Vehicle? vehicle = CheckVehicleID();
+
+            bool isBorrowerName = true;
+            string? borrower;
+
+            do
+            {
+                Console.Write("Podaj nazwę osoby wypożyczającej pojazd: ");
+                borrower = Console.ReadLine();
+                if (borrower != null && borrower.Length > 0) isBorrowerName = false;
+            } while (isBorrowerName);
+
+            vehicle?.Borrow(borrower);
+        }
+
+        protected void ShowError(string msg, bool stopProgram = true)
+        {
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine(msg);
+            Console.ResetColor();
+            
+            Console.ReadKey();
         }
 
         private void DeleteCar()
         {
-            throw new NotImplementedException();
+            Console.WriteLine("Usunięcie pojazdu.");
+
+            int vehicleID = ValidateInsertedInteger("Podaj ID pojazdu: ",
+                                                      "Błędna wartość. Zajrzyj do listy pojazdów i podaj poprawne ID.");
+
+            repository.Remove(vehicleID);
         }
 
-        private void AddNewCar()
+        private Vehicle? GetCarData(Vehicle? vehicle)
         {
-            Console.WriteLine("Tworzenie nowego pojazdu.");
-            Console.WriteLine("Wybierz typ auta: ");
-            Console.WriteLine(" 1. Car");
-            Console.WriteLine(" 2. Bus");
-            Console.WriteLine(" 3. Truck");
-            int carTypeUser = int.Parse(Console.ReadLine());
-            CarTypes carType = (CarTypes)carTypeUser;
+            int carTypeUser = ValidateInsertedInteger("Wybierz typ auta: \n 1. Car\n 2. Bus\n 3. Truck\n",
+                                                        "Błędny typ danych. Podaj typ auta . Wprowadź [1-3].", 1, 3);
 
-            Vehicle? vehicle = null;
+            CarTypes carType = (CarTypes)carTypeUser;
 
             switch (carType)
             {
@@ -76,7 +129,9 @@ namespace ComarchBootcampKonsola.App.CarManagment
                     break;
             }
 
-            if (vehicle == null) return;
+            if (vehicle == null) return null;
+
+            vehicle.CarType = carType;
 
             Console.Write("Podaj markę: ");
             vehicle.Maker = Console.ReadLine();
@@ -87,17 +142,52 @@ namespace ComarchBootcampKonsola.App.CarManagment
             Console.Write("Podaj rodzaj paliwa: ");
             vehicle.GasType = Console.ReadLine();
 
-            Console.Write("Podaj pojemność silnika: ");
-            vehicle.Capacity = int.Parse(Console.ReadLine());
+            vehicle.Capacity = ValidateInsertedInteger("Podaj pojemność silnika [cm^3]: ", "Błędny typ danych. Podaj pojemność silnika w centymetrach sześciennych.");
 
-            var repository = new VehicleRepository();
+            return vehicle;
+        }
+        private void EditCar()
+        {
+            Console.WriteLine("Edycja pojazdu.");
+
+            int vehicleID = 0;
+            Vehicle? vehicle = null;
+            bool vehicleFound = true;
+
+            do
+            {
+                vehicleID = ValidateInsertedInteger("Podaj ID pojazdu: ",
+                                                      "Błędna wartość. Zajrzyj do listy pojazdów i podaj poprawne ID.");
+                vehicle = repository.GetVehicle(vehicleID);
+                if (vehicle != null) vehicleFound = false;
+                else
+                {
+                    ShowError("Podany ID pojazu nie istnieje!");
+                }
+
+            } while (vehicleFound);
+
+            vehicle = GetCarData(vehicle);
+
+            if(vehicle == null) return;
+
+            repository.Edit(vehicleID, vehicle);
+        }
+
+        private void AddNewCar()
+        {
+            Console.WriteLine("Tworzenie nowego pojazdu.");
+            Vehicle? vehicle = null;
+
+            vehicle = GetCarData(vehicle);
+            if (vehicle == null) return;
+
             repository.Add(vehicle);
 
         }
 
         private void ShowCars()
         {
-            var repository = new VehicleRepository();
             var carList = repository.GetAll();
 
             ConsoleTable
@@ -106,24 +196,66 @@ namespace ComarchBootcampKonsola.App.CarManagment
             Console.ReadKey();
         }
 
-        private void BorrowCar()
+        private Vehicle? CheckVehicleID()
         {
-            Vehicle vehicle = new Car();
-            vehicle.Borrow("");
+            Vehicle? vehicle = null;
+            bool vehicleFound = true;
+            do
+            {
+                int vehicleID = ValidateInsertedInteger("Podaj ID pojazdu: ",
+                                                      "Błędna wartość. Zajrzyj do listy pojazdów i podaj poprawne ID.");
+                vehicle = repository.GetVehicle(vehicleID);
+                if (vehicle != null) vehicleFound = false;
+                else
+                {
+                    ShowError("Podany ID pojazu nie istnieje!");
+                }
 
-            Car car = new Car();
-            car.Borrow("");
+            } while (vehicleFound);
+
+            return vehicle;
+        }
+
+        private int ValidateInsertedInteger(string message, string errorMessage, int minRange = 0, int maxRange = 0)
+        {
+            bool isDataCorrect = false;
+            int value = 0;
+            do
+            {
+                Console.Write(message);
+                if (int.TryParse(Console.ReadLine(), out value))
+                {
+                    
+                    if (minRange != maxRange && (value < minRange || value > maxRange) )
+                    {
+                        ShowError(errorMessage);
+                    }
+                    else
+                    {
+                        isDataCorrect = true;
+                    }
+                }
+                else
+                {
+                    ShowError(errorMessage);
+                }
+            } while (!isDataCorrect);
+
+            return value;
         }
 
         private void ShowMenu()
         {
             Console.Clear();
-            Console.WriteLine("CAR MANAGER 1.0");
+            Console.WriteLine("CAR MANAGER 2.0");
             Console.WriteLine("  1. Lista aut");
             Console.WriteLine("  2. Dodaj auto");
-            Console.WriteLine("  3. Usuń auto");
-            Console.WriteLine("  4. Wypożycz");
+            Console.WriteLine("  3. Edytuj auto");
+            Console.WriteLine("  4. Usuń auto");
+            Console.WriteLine("  5. Wypożycz");
+            Console.WriteLine("  6. Zwróć");
             Console.WriteLine("  0. Zakończ");
         }
+
     }
 }
